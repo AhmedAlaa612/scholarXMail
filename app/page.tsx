@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 
 type JobStatus = "idle" | "running" | "stopped" | "completed";
+type SenderProfile = "gmail" | "info";
 
 const defaultTemplate = `<html>
   <body>
@@ -51,7 +52,8 @@ export default function Page() {
     "Next Scholar Summit 2026 - Reserve Your Free Spot",
   );
   const [htmlTemplate, setHtmlTemplate] = useState(defaultTemplate);
-  const [testEmail, setTestEmail] = useState("ahmedismail999r@gmail.com");
+  const [testEmail, setTestEmail] = useState("asafstevn@gmail.com");
+  const [senderProfile, setSenderProfile] = useState<SenderProfile>("gmail");
 
   const [jobId, setJobId] = useState<string>("");
   const [status, setStatus] = useState<JobStatus>("idle");
@@ -88,6 +90,7 @@ export default function Page() {
           htmlTemplate,
           testEmail,
           firstName: "Ahmed",
+          senderProfile,
         }),
       });
 
@@ -153,7 +156,7 @@ export default function Page() {
         const res = await fetch("/api/jobs/next", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ jobId: currentJobId }),
+          body: JSON.stringify({ jobId: currentJobId, senderProfile }),
         });
 
         const json = await res.json();
@@ -239,6 +242,17 @@ export default function Page() {
           value={testEmail}
           onChange={(e) => setTestEmail(e.target.value)}
         />
+
+        <label style={{ marginTop: 12 }}>Send From</label>
+        <select
+          value={senderProfile}
+          onChange={(e) => setSenderProfile(e.target.value as SenderProfile)}
+        >
+          <option value="gmail">
+            ScholarX Gmail (scholarx.team@gmail.com)
+          </option>
+          <option value="info">ScholarX Info (info@scholar-x.org)</option>
+        </select>
 
         <label style={{ marginTop: 12 }}>
           HTML Template (use {"{{first_name}}"})

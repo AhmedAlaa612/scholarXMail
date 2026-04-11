@@ -17,6 +17,7 @@ export async function POST(req: NextRequest) {
   const htmlTemplate = String(body.htmlTemplate || "").trim();
   const testEmail = String(body.testEmail || "").trim();
   const firstName = String(body.firstName || "there").trim() || "there";
+  const senderProfile = String(body.senderProfile || "gmail").trim();
 
   if (!campaignName || !subject || !htmlTemplate || !testEmail) {
     return NextResponse.json(
@@ -41,14 +42,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: saveErr.message }, { status: 500 });
   }
 
-  const transporter = getMailer();
+  const transporter = getMailer(senderProfile);
   const htmlBody = withFirstName(htmlTemplate, firstName);
   const textBody = `Hi ${firstName},\n\nPlease view this email in HTML format.`;
   const inlineImage = loadInlineSponsorsImage();
 
   try {
     await transporter.sendMail({
-      from: getSender(),
+      from: getSender(senderProfile),
       to: testEmail,
       subject,
       text: textBody,
@@ -61,6 +62,7 @@ export async function POST(req: NextRequest) {
       email: testEmail,
       subject,
       campaignName,
+      senderProfile,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown send error";

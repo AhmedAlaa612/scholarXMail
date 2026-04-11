@@ -14,11 +14,39 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-export function getMailer() {
-  const host = process.env.SMTP_HOST;
-  const port = Number(process.env.SMTP_PORT || 587);
-  const user = process.env.SMTP_USER;
-  const pass = process.env.SMTP_PASS;
+export type SenderProfile = "gmail" | "info";
+
+function toSenderProfile(value: unknown): SenderProfile {
+  return value === "info" ? "info" : "gmail";
+}
+
+function getSmtpSettings(profile: SenderProfile) {
+  if (profile === "info") {
+    const host = process.env.SMTP_INFO_HOST;
+    const port = Number(process.env.SMTP_INFO_PORT || 465);
+    const user = process.env.SMTP_INFO_USER;
+    const pass = process.env.SMTP_INFO_PASS;
+    const from = process.env.SMTP_INFO_FROM || "ScholarX <info@scholar-x.org>";
+
+    if (!host || !user || !pass) {
+      throw new Error(
+        "Missing SMTP_INFO_HOST, SMTP_INFO_USER, or SMTP_INFO_PASS in environment variables.",
+      );
+    }
+
+    return { host, port, user, pass, from, secure: port === 465 };
+  }
+
+  const host = process.env.SMTP_PROFILE_GMAIL_HOST || process.env.SMTP_HOST;
+  const port = Number(
+    process.env.SMTP_PROFILE_GMAIL_PORT || process.env.SMTP_PORT || 587,
+  );
+  const user = process.env.SMTP_PROFILE_GMAIL_USER || process.env.SMTP_USER;
+  const pass = process.env.SMTP_PROFILE_GMAIL_PASS || process.env.SMTP_PASS;
+  const from =
+    process.env.SMTP_PROFILE_GMAIL_FROM ||
+    process.env.SMTP_FROM ||
+    "ScholarX <scholarx.team@gmail.com>";
 
   if (!host || !user || !pass) {
     throw new Error(
@@ -26,16 +54,24 @@ export function getMailer() {
     );
   }
 
+  return { host, port, user, pass, from, secure: port === 465 };
+}
+
+export function getMailer(profileInput?: unknown) {
+  const profile = toSenderProfile(profileInput);
+  const smtp = getSmtpSettings(profile);
+
   return nodemailer.createTransport({
-    host,
-    port,
-    secure: false,
-    auth: { user, pass },
+    host: smtp.host,
+    port: smtp.port,
+    secure: smtp.secure,
+    auth: { user: smtp.user, pass: smtp.pass },
   });
 }
 
-export function getSender() {
-  return process.env.SMTP_FROM || "ScholarX <scholarx.team@gmail.com>";
+export function getSender(profileInput?: unknown) {
+  const profile = toSenderProfile(profileInput);
+  return getSmtpSettings(profile).from;
 }
 
 export function loadInlineSponsorsImage() {

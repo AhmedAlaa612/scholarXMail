@@ -34,6 +34,11 @@ Copy `.env.example` to `.env.local` and fill values:
 - `SMTP_USER`
 - `SMTP_PASS`
 - `SMTP_FROM`
+- `SMTP_INFO_HOST`
+- `SMTP_INFO_PORT`
+- `SMTP_INFO_USER`
+- `SMTP_INFO_PASS`
+- `SMTP_INFO_FROM`
 
 ## 3) Run Locally
 
@@ -55,5 +60,6 @@ Open `http://localhost:3000`.
 
 - Template supports `{{first_name}}` placeholder.
 - Test send saves the current campaign template, then sends only to the email you enter.
+- Sender profile switch supports Gmail and info@scholar-x.org.
 - Sending loop is controlled by the browser calling `/api/jobs/next` repeatedly.
 - Stop button updates job status to `stopped`; next iteration exits.

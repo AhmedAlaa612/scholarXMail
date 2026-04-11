@@ -20,6 +20,7 @@ function withFirstName(template: string, firstName: string) {
 export async function POST(req: NextRequest) {
   const body = await req.json();
   const jobId = String(body.jobId || "").trim();
+  const senderProfile = String(body.senderProfile || "gmail").trim();
 
   if (!jobId) {
     return NextResponse.json({ error: "jobId is required" }, { status: 400 });
@@ -106,16 +107,15 @@ export async function POST(req: NextRequest) {
   const textBody = `Hi ${firstName},\n\nPlease view this email in HTML format.`;
 
   try {
-    const transporter = getMailer();
+    const transporter = getMailer(senderProfile);
+    const inlineImage = loadInlineSponsorsImage();
     await transporter.sendMail({
-      from: getSender(),
+      from: getSender(senderProfile),
       to: email,
       subject,
       text: textBody,
       html: htmlBody,
-      attachments: loadInlineSponsorsImage()
-        ? [loadInlineSponsorsImage()!]
-        : [],
+      attachments: inlineImage ? [inlineImage] : [],
     });
 
     await supabase.from("campaign_participants").upsert(
