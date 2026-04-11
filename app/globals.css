@@ -1,0 +1,99 @@
+:root {
+  --bg: #f6f8fb;
+  --panel: #ffffff;
+  --ink: #12263a;
+  --muted: #4f6272;
+  --accent: #0f766e;
+  --danger: #b42318;
+  --border: #d6e0ea;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+  color: var(--ink);
+  background: linear-gradient(180deg, #eef6ff 0%, #f8fafc 40%, #f6f8fb 100%);
+}
+
+main {
+  max-width: 980px;
+  margin: 32px auto;
+  padding: 0 16px 40px;
+}
+
+h1 {
+  margin: 0 0 8px;
+}
+
+p {
+  color: var(--muted);
+}
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-top: 16px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+label {
+  font-size: 14px;
+  color: var(--muted);
+  display: block;
+  margin-bottom: 6px;
+}
+
+input,
+textarea,
+button {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+textarea {
+  min-height: 260px;
+  resize: vertical;
+  font-family: Consolas, "Courier New", monospace;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.actions button {
+  width: auto;
+  min-width: 140px;
+  cursor: pointer;
+  border: none;
+  color: white;
+  background: var(--accent);
+}
+
+.actions button.stop {
+  background: var(--danger);
+}
+
+pre {
+  margin: 0;
+  background: #0b1f33;
+  color: #dce9f9;
+  padding: 12px;
+  border-radius: 10px;
+  overflow: auto;
+}
