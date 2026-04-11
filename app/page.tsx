@@ -51,7 +51,7 @@ export default function Page() {
     "Next Scholar Summit 2026 - Reserve Your Free Spot",
   );
   const [htmlTemplate, setHtmlTemplate] = useState(defaultTemplate);
-  const [testEmail, setTestEmail] = useState("ahmedismail999r@gmail.com");
+  const [testEmail, setTestEmail] = useState("asafsteven@gmail.com");
 
   const [jobId, setJobId] = useState<string>("");
   const [status, setStatus] = useState<JobStatus>("idle");
