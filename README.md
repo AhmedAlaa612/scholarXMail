@@ -40,6 +40,79 @@ Copy `.env.example` to `.env.local` and fill values:
 - `SMTP_INFO_PASS`
 - `SMTP_INFO_FROM`
 
+For many sender accounts, use a local file instead of long env lists:
+
+- create `smtp-profiles.local.json` in project root (already gitignored)
+- optional: set `SMTP_PROFILES_FILE` in `.env.local` if you want a custom path
+
+Example:
+
+```json
+{
+  "gmail": {
+    "host": "smtp.gmail.com",
+    "port": 587,
+    "user": "scholarx.team@gmail.com",
+    "pass": "app-password",
+    "from": "ScholarX <scholarx.team@gmail.com>"
+  },
+  "info": {
+    "host": "smtp.hostinger.com",
+    "port": 465,
+    "user": "info@scholar-x.org",
+    "pass": "mail-password",
+    "from": "ScholarX <info@scholar-x.org>"
+  },
+  "eu": {
+    "host": "smtp.hostinger.com",
+    "port": 465,
+    "user": "eu@scholar-x.org",
+    "pass": "mail-password",
+    "from": "EU Team <eu@scholar-x.org>"
+  }
+}
+```
+
+The app UI auto-loads profiles from this file.
+
+For Vercel, use `SMTP_PROFILES_JSON` in Project Settings -> Environment Variables.
+`smtp-profiles.local.json` is local-only and is not uploaded to Vercel.
+
+Example value for `SMTP_PROFILES_JSON`:
+
+```json
+{
+  "gmail": {
+    "host": "smtp.gmail.com",
+    "port": 587,
+    "user": "scholarx.team@gmail.com",
+    "pass": "app-password",
+    "from": "ScholarX <scholarx.team@gmail.com>"
+  },
+  "marketing_gmail": {
+    "host": "smtp.gmail.com",
+    "port": 587,
+    "user": "scholarx.marketing@gmail.com",
+    "pass": "app-password",
+    "from": "ScholarX Marketing <scholarx.marketing@gmail.com>"
+  },
+  "info_gmail": {
+    "host": "smtp.gmail.com",
+    "port": 587,
+    "user": "scholarx.info@gmail.com",
+    "pass": "app-password",
+    "from": "ScholarX Info <scholarx.info@gmail.com>"
+  },
+  "info": {
+    "host": "smtp.hostinger.com",
+    "port": 465,
+    "user": "info@scholar-x.org",
+    "pass": "mail-password",
+    "from": "ScholarX <info@scholar-x.org>"
+  }
+}
+```
+
 ## 3) Run Locally
 
 ```bash
@@ -60,6 +133,6 @@ Open `http://localhost:3000`.
 
 - Template supports `{{first_name}}` placeholder.
 - Test send saves the current campaign template, then sends only to the email you enter.
-- Sender profile switch supports Gmail and info@scholar-x.org.
+- Sender profile switch loads all configured profiles from env and/or `smtp-profiles.local.json`.
 - Sending loop is controlled by the browser calling `/api/jobs/next` repeatedly.
 - Stop button updates job status to `stopped`; next iteration exits.

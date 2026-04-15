@@ -14,47 +14,187 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-export type SenderProfile = "gmail" | "info";
+type SmtpProfile = {
+  host: string;
+  port: number;
+  user: string;
+  pass: string;
+  from: string;
+  secure: boolean;
+};
 
-function toSenderProfile(value: unknown): SenderProfile {
-  return value === "info" ? "info" : "gmail";
-}
+export type SenderProfile = string;
 
-function getSmtpSettings(profile: SenderProfile) {
-  if (profile === "info") {
-    const host = process.env.SMTP_INFO_HOST;
-    const port = Number(process.env.SMTP_INFO_PORT || 465);
-    const user = process.env.SMTP_INFO_USER;
-    const pass = process.env.SMTP_INFO_PASS;
-    const from = process.env.SMTP_INFO_FROM || "ScholarX <info@scholar-x.org>";
-
-    if (!host || !user || !pass) {
-      throw new Error(
-        "Missing SMTP_INFO_HOST, SMTP_INFO_USER, or SMTP_INFO_PASS in environment variables.",
-      );
-    }
-
-    return { host, port, user, pass, from, secure: port === 465 };
+function normalizeProfile(raw: unknown, key: string): SmtpProfile | null {
+  if (!raw || typeof raw !== "object") {
+    return null;
   }
 
-  const host = process.env.SMTP_PROFILE_GMAIL_HOST || process.env.SMTP_HOST;
-  const port = Number(
+  const source = raw as Record<string, unknown>;
+  const host = String(source.host || "").trim();
+  const user = String(source.user || "").trim();
+  const pass = String(source.pass || "").trim();
+  const from =
+    String(source.from || "").trim() ||
+    `ScholarX <${user || "no-reply@example.com"}>`;
+  const portValue = Number(source.port || 0);
+  const port = Number.isFinite(portValue) && portValue > 0 ? portValue : 587;
+  const secure =
+    typeof source.secure === "boolean" ? source.secure : port === 465;
+
+  if (!host || !user || !pass) {
+    throw new Error(
+      `SMTP profile \"${key}\" is missing host, user, or pass in smtp-profiles file.`,
+    );
+  }
+
+  return { host, port, user, pass, from, secure };
+}
+
+function loadProfilesFromFile(): Record<string, SmtpProfile> {
+  const configuredPath = String(process.env.SMTP_PROFILES_FILE || "").trim();
+  const candidates = configuredPath
+    ? [configuredPath, path.join(process.cwd(), "smtp-profiles.local.json")]
+    : [path.join(process.cwd(), "smtp-profiles.local.json")];
+
+  const filePath = candidates.find((candidate) => existsSync(candidate));
+
+  if (!filePath) {
+    return {};
+  }
+
+  const rawContent = readFileSync(filePath, "utf-8");
+  const parsed = JSON.parse(rawContent) as
+    | Record<string, unknown>
+    | { profiles?: Record<string, unknown> };
+  const profileMap =
+    "profiles" in parsed && parsed.profiles ? parsed.profiles : parsed;
+
+  const result: Record<string, SmtpProfile> = {};
+
+  for (const [key, value] of Object.entries(profileMap)) {
+    const normalized = normalizeProfile(value, key);
+    if (normalized) {
+      result[key] = normalized;
+    }
+  }
+
+  return result;
+}
+
+function loadProfilesFromJsonEnv(): Record<string, SmtpProfile> {
+  const rawJson = String(process.env.SMTP_PROFILES_JSON || "").trim();
+
+  if (!rawJson) {
+    return {};
+  }
+
+  const parsed = JSON.parse(rawJson) as
+    | Record<string, unknown>
+    | { profiles?: Record<string, unknown> };
+  const profileMap =
+    "profiles" in parsed && parsed.profiles ? parsed.profiles : parsed;
+
+  const result: Record<string, SmtpProfile> = {};
+
+  for (const [key, value] of Object.entries(profileMap)) {
+    const normalized = normalizeProfile(value, key);
+    if (normalized) {
+      result[key] = normalized;
+    }
+  }
+
+  return result;
+}
+
+function loadProfilesFromEnv(): Record<string, SmtpProfile> {
+  const result: Record<string, SmtpProfile> = {};
+
+  const infoHost = process.env.SMTP_INFO_HOST;
+  const infoPort = Number(process.env.SMTP_INFO_PORT || 465);
+  const infoUser = process.env.SMTP_INFO_USER;
+  const infoPass = process.env.SMTP_INFO_PASS;
+  const infoFrom = process.env.SMTP_INFO_FROM || "ScholarX <info@scholar-x.org>";
+
+  if (infoHost && infoUser && infoPass) {
+    result.info = {
+      host: infoHost,
+      port: infoPort,
+      user: infoUser,
+      pass: infoPass,
+      from: infoFrom,
+      secure: infoPort === 465,
+    };
+  }
+
+  const gmailHost = process.env.SMTP_PROFILE_GMAIL_HOST || process.env.SMTP_HOST;
+  const gmailPort = Number(
     process.env.SMTP_PROFILE_GMAIL_PORT || process.env.SMTP_PORT || 587,
   );
-  const user = process.env.SMTP_PROFILE_GMAIL_USER || process.env.SMTP_USER;
-  const pass = process.env.SMTP_PROFILE_GMAIL_PASS || process.env.SMTP_PASS;
-  const from =
+  const gmailUser = process.env.SMTP_PROFILE_GMAIL_USER || process.env.SMTP_USER;
+  const gmailPass = process.env.SMTP_PROFILE_GMAIL_PASS || process.env.SMTP_PASS;
+  const gmailFrom =
     process.env.SMTP_PROFILE_GMAIL_FROM ||
     process.env.SMTP_FROM ||
     "ScholarX <scholarx.team@gmail.com>";
 
-  if (!host || !user || !pass) {
+  if (gmailHost && gmailUser && gmailPass) {
+    result.gmail = {
+      host: gmailHost,
+      port: gmailPort,
+      user: gmailUser,
+      pass: gmailPass,
+      from: gmailFrom,
+      secure: gmailPort === 465,
+    };
+  }
+
+  return result;
+}
+
+function getAllSmtpProfiles(): Record<string, SmtpProfile> {
+  // Precedence: legacy env < JSON env < local file.
+  return {
+    ...loadProfilesFromEnv(),
+    ...loadProfilesFromJsonEnv(),
+    ...loadProfilesFromFile(),
+  };
+}
+
+function toSenderProfile(value: unknown): SenderProfile {
+  const requested = String(value || "").trim();
+  const available = getAllSmtpProfiles();
+  const keys = Object.keys(available);
+
+  if (keys.length === 0) {
     throw new Error(
-      "Missing SMTP_HOST, SMTP_USER, or SMTP_PASS in environment variables.",
+      "No SMTP profiles configured. Add env SMTP vars or smtp-profiles.local.json.",
     );
   }
 
-  return { host, port, user, pass, from, secure: port === 465 };
+  if (requested && available[requested]) {
+    return requested;
+  }
+
+  if (available.gmail) {
+    return "gmail";
+  }
+
+  return keys[0];
+}
+
+function getSmtpSettings(profile: SenderProfile) {
+  const profiles = getAllSmtpProfiles();
+  const selected = profiles[profile];
+
+  if (!selected) {
+    const keys = Object.keys(profiles);
+    throw new Error(
+      `Unknown sender profile \"${profile}\". Available profiles: ${keys.join(", ")}`,
+    );
+  }
+
+  return selected;
 }
 
 export function getMailer(profileInput?: unknown) {
@@ -72,6 +212,16 @@ export function getMailer(profileInput?: unknown) {
 export function getSender(profileInput?: unknown) {
   const profile = toSenderProfile(profileInput);
   return getSmtpSettings(profile).from;
+}
+
+export function listSenderProfiles() {
+  const profiles = getAllSmtpProfiles();
+
+  return Object.entries(profiles).map(([key, value]) => ({
+    key,
+    from: value.from,
+    user: value.user,
+  }));
 }
 
 export function loadInlineSponsorsImage() {

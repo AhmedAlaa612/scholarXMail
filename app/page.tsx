@@ -1,9 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type JobStatus = "idle" | "running" | "stopped" | "completed";
-type SenderProfile = "gmail" | "info";
+type SenderProfile = string;
+type SenderProfileOption = {
+  key: string;
+  from: string;
+};
 
 const defaultTemplate = `<html>
   <body>
@@ -53,6 +57,7 @@ export default function Page() {
   );
   const [htmlTemplate, setHtmlTemplate] = useState(defaultTemplate);
   const [testEmail, setTestEmail] = useState("asafstevn@gmail.com");
+  const [profileOptions, setProfileOptions] = useState<SenderProfileOption[]>([]);
   const [senderProfile, setSenderProfile] = useState<SenderProfile>("gmail");
 
   const [jobId, setJobId] = useState<string>("");
@@ -77,6 +82,39 @@ export default function Page() {
   function pushLog(line: string) {
     setLog((prev) => [line, ...prev].slice(0, 120));
   }
+
+  useEffect(() => {
+    async function loadProfiles() {
+      try {
+        const res = await fetch("/api/sender-profiles", { method: "GET" });
+        const json = await res.json();
+
+        if (!res.ok) {
+          throw new Error(json.error || "Failed to load sender profiles");
+        }
+
+        const profiles = Array.isArray(json.profiles)
+          ? (json.profiles as SenderProfileOption[])
+          : [];
+
+        setProfileOptions(profiles);
+        if (profiles.length > 0) {
+          setSenderProfile((current) => {
+            if (profiles.some((profile) => profile.key === current)) {
+              return current;
+            }
+            return profiles[0].key;
+          });
+        }
+      } catch (err) {
+        pushLog(
+          `Could not load sender profiles: ${err instanceof Error ? err.message : "Unknown error"}`,
+        );
+      }
+    }
+
+    void loadProfiles();
+  }, []);
 
   async function sendTestEmail() {
     setBusy(true);
@@ -248,10 +286,11 @@ export default function Page() {
           value={senderProfile}
           onChange={(e) => setSenderProfile(e.target.value as SenderProfile)}
         >
-          <option value="gmail">
-            ScholarX Gmail (scholarx.team@gmail.com)
-          </option>
-          <option value="info">ScholarX Info (info@scholar-x.org)</option>
+          {profileOptions.map((profile) => (
+            <option key={profile.key} value={profile.key}>
+              {profile.key} ({profile.from})
+            </option>
+          ))}
         </select>
 
         <label style={{ marginTop: 12 }}>
