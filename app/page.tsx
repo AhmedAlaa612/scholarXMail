@@ -57,7 +57,9 @@ export default function Page() {
   );
   const [htmlTemplate, setHtmlTemplate] = useState(defaultTemplate);
   const [testEmail, setTestEmail] = useState("asafstevn@gmail.com");
-  const [profileOptions, setProfileOptions] = useState<SenderProfileOption[]>([]);
+  const [profileOptions, setProfileOptions] = useState<SenderProfileOption[]>(
+    [],
+  );
   const [senderProfile, setSenderProfile] = useState<SenderProfile>("gmail");
 
   const [jobId, setJobId] = useState<string>("");
@@ -215,6 +217,9 @@ export default function Page() {
           pushLog(`Job ended: ${nextStatus}`);
           break;
         }
+
+        const delayMs = Math.floor(Math.random() * 4000) + 1000;
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
       } catch (err) {
         stopRequestedRef.current = true;
         setStatus("stopped");
