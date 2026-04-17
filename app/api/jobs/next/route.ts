@@ -158,13 +158,26 @@ export async function POST(req: NextRequest) {
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown send error";
-    await supabase
+
+    // Mark as processed so it doesn't retry
+    await supabase.from("campaign_participants").upsert(
+      {
+        campaign_id: campaign.id,
+        participant_id: nextRow.id,
+      },
+      { onConflict: "campaign_id,participant_id" },
+    );
+
+    const { data: updatedJob } = await supabase
       .from("campaign_jobs")
       .update({ failed_count: job.failed_count + 1 })
-      .eq("id", job.id);
+      .eq("id", job.id)
+      .select("status")
+      .single();
+
     return NextResponse.json({
       done: false,
-      status: "running",
+      status: updatedJob?.status || "running",
       failed: true,
       error: message,
       email,
