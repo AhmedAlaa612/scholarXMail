@@ -21,6 +21,11 @@ type ManagedSmtpProfile = {
   user: string;
   from: string;
 };
+type CampaignOption = {
+  name: string;
+  subject: string | null;
+  html_template: string | null;
+};
 
 const defaultTemplate = `<html>
   <body>
@@ -62,13 +67,15 @@ const defaultTemplate = `<html>
   </body>
 </html>`;
 
+const defaultSubject = "Next Scholar Summit 2026 - Reserve Your Free Spot";
+
 export default function Page() {
   const [campaignName, setCampaignName] = useState("summit-2026");
   const [count, setCount] = useState(100);
-  const [subject, setSubject] = useState(
-    "Next Scholar Summit 2026 - Reserve Your Free Spot",
-  );
+  const [subject, setSubject] = useState(defaultSubject);
   const [htmlTemplate, setHtmlTemplate] = useState(defaultTemplate);
+  const [campaignList, setCampaignList] = useState<CampaignOption[]>([]);
+  const [campaignBusy, setCampaignBusy] = useState(false);
   const [testEmail, setTestEmail] = useState("asafstevn@gmail.com");
   const [profileOptions, setProfileOptions] = useState<SenderProfileOption[]>(
     [],
@@ -226,9 +233,85 @@ export default function Page() {
     }
   }
 
+  async function loadCampaigns() {
+    try {
+      const res = await fetch("/api/campaigns", { method: "GET" });
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to load campaigns");
+      }
+
+      setCampaignList(
+        Array.isArray(json.campaigns) ? (json.campaigns as CampaignOption[]) : [],
+      );
+    } catch (err) {
+      pushLog(
+        `Could not load campaign list: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  async function loadCampaignInto(name: string) {
+    setCampaignBusy(true);
+    try {
+      const res = await fetch(
+        `/api/campaign?campaignName=${encodeURIComponent(name)}`,
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load campaign");
+
+      setCampaignName(json.campaign.name);
+      setSubject(json.campaign.subject || defaultSubject);
+      setHtmlTemplate(json.campaign.html_template || defaultTemplate);
+      pushLog(`Loaded campaign "${json.campaign.name}".`);
+    } catch (err) {
+      pushLog(
+        `Load campaign failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    } finally {
+      setCampaignBusy(false);
+    }
+  }
+
+  function newCampaign() {
+    setCampaignName("");
+    setSubject(defaultSubject);
+    setHtmlTemplate(defaultTemplate);
+    pushLog("Blank campaign ready — set a name, edit the template, then Save.");
+  }
+
+  async function saveCampaign() {
+    if (!campaignName.trim()) {
+      pushLog("Campaign name is required to save.");
+      return;
+    }
+
+    setCampaignBusy(true);
+    try {
+      const res = await fetch("/api/campaign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campaignName, subject, htmlTemplate }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to save campaign");
+
+      pushLog(`Campaign "${json.campaign.name}" saved.`);
+      await loadCampaigns();
+    } catch (err) {
+      pushLog(
+        `Save campaign failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    } finally {
+      setCampaignBusy(false);
+    }
+  }
+
   useEffect(() => {
     void loadProfiles();
     void loadDbProfiles();
+    void loadCampaigns();
   }, []);
 
   async function sendTestEmail() {
@@ -271,6 +354,7 @@ export default function Page() {
       const saveJson = await saveRes.json();
       if (!saveRes.ok)
         throw new Error(saveJson.error || "Failed to save campaign");
+      void loadCampaigns();
 
       const res = await fetch("/api/jobs/start", {
         method: "POST",
@@ -434,9 +518,27 @@ export default function Page() {
 
       <section className="card grid">
         <div>
+          <label>Load Existing Campaign</label>
+          <select
+            value=""
+            disabled={campaignBusy}
+            onChange={(e) => {
+              if (e.target.value) void loadCampaignInto(e.target.value);
+            }}
+          >
+            <option value="">-- pick a saved campaign --</option>
+            {campaignList.map((c) => (
+              <option key={c.name} value={c.name}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
           <label>Campaign Name</label>
           <input
             value={campaignName}
+            placeholder="new-campaign-name"
             onChange={(e) => setCampaignName(e.target.value)}
           />
         </div>
@@ -448,6 +550,17 @@ export default function Page() {
             value={count}
             onChange={(e) => setCount(Number(e.target.value || 0))}
           />
+        </div>
+        <div className="actions" style={{ alignItems: "flex-end", marginTop: 0 }}>
+          <button disabled={campaignBusy} onClick={newCampaign}>
+            New Campaign
+          </button>
+          <button
+            disabled={campaignBusy || !campaignName.trim()}
+            onClick={saveCampaign}
+          >
+            Save Campaign
+          </button>
         </div>
       </section>
 
