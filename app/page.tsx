@@ -660,6 +660,10 @@ export default function Page() {
       </section>
 
       <section className="card">
+        <p style={{ marginTop: 0 }}>
+          Editing campaign: <strong>{campaignName || "(unnamed — set a name above)"}</strong>
+        </p>
+
         <label>Email Subject</label>
         <input value={subject} onChange={(e) => setSubject(e.target.value)} />
 
@@ -691,6 +695,12 @@ export default function Page() {
         />
 
         <div className="actions">
+          <button
+            disabled={campaignBusy || !campaignName.trim()}
+            onClick={saveCampaign}
+          >
+            Save Template
+          </button>
           <button
             disabled={busy || testEmail.trim().length === 0}
             onClick={sendTestEmail}
