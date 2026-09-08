@@ -26,6 +26,12 @@ type CampaignOption = {
   subject: string | null;
   html_template: string | null;
 };
+type CampaignStats = {
+  total: number;
+  sent: number;
+  failed: number;
+  remaining: number;
+};
 
 const defaultTemplate = `<html>
   <body>
@@ -94,6 +100,9 @@ export default function Page() {
   const [htmlTemplate, setHtmlTemplate] = useState(defaultTemplate);
   const [campaignList, setCampaignList] = useState<CampaignOption[]>([]);
   const [campaignBusy, setCampaignBusy] = useState(false);
+  const [campaignStats, setCampaignStats] = useState<CampaignStats | null>(
+    null,
+  );
   const [testEmail, setTestEmail] = useState("asafstevn@gmail.com");
   const [profileOptions, setProfileOptions] = useState<SenderProfileOption[]>(
     [],
@@ -270,6 +279,32 @@ export default function Page() {
     }
   }
 
+  async function loadStats(name: string) {
+    if (!name.trim()) {
+      setCampaignStats(null);
+      return;
+    }
+
+    try {
+      const res = await fetch(
+        `/api/campaign/stats?campaignName=${encodeURIComponent(name)}`,
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load stats");
+
+      setCampaignStats({
+        total: json.total || 0,
+        sent: json.sent || 0,
+        failed: json.failed || 0,
+        remaining: json.remaining || 0,
+      });
+    } catch (err) {
+      pushLog(
+        `Could not load campaign stats: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    }
+  }
+
   async function loadCampaignInto(name: string) {
     setCampaignBusy(true);
     try {
@@ -284,6 +319,7 @@ export default function Page() {
       setHtmlTemplate(json.campaign.html_template || defaultTemplate);
       rememberCampaignName(json.campaign.name);
       pushLog(`Loaded campaign "${json.campaign.name}".`);
+      void loadStats(json.campaign.name);
     } catch (err) {
       pushLog(
         `Load campaign failed: ${err instanceof Error ? err.message : "Unknown error"}`,
@@ -297,6 +333,7 @@ export default function Page() {
     setCampaignName("");
     setSubject(defaultSubject);
     setHtmlTemplate(defaultTemplate);
+    setCampaignStats(null);
     rememberCampaignName("");
     pushLog("Blank campaign ready — set a name, edit the template, then Save.");
   }
@@ -320,6 +357,7 @@ export default function Page() {
       pushLog(`Campaign "${json.campaign.name}" saved.`);
       rememberCampaignName(json.campaign.name);
       await loadCampaigns();
+      void loadStats(json.campaign.name);
     } catch (err) {
       pushLog(
         `Save campaign failed: ${err instanceof Error ? err.message : "Unknown error"}`,
@@ -426,9 +464,27 @@ export default function Page() {
 
         if (json.failed) {
           setFailed((v) => v + 1);
+          setCampaignStats((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  failed: prev.failed + 1,
+                  remaining: Math.max(0, prev.remaining - 1),
+                }
+              : prev,
+          );
           pushLog(`Failed: ${json.email || "unknown"} - ${json.error}`);
         } else if (json.email) {
           setSent((v) => v + 1);
+          setCampaignStats((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  sent: prev.sent + 1,
+                  remaining: Math.max(0, prev.remaining - 1),
+                }
+              : prev,
+          );
           pushLog(`Sent: ${json.email}`);
         }
 
@@ -445,6 +501,7 @@ export default function Page() {
           } else {
             pushLog(`Job ended: ${nextStatus}`);
           }
+          void loadStats(campaignName);
           break;
         }
 
@@ -765,9 +822,25 @@ export default function Page() {
       )}
 
       <section className="card">
+        <h3 style={{ marginTop: 0 }}>
+          Campaign Progress {campaignName ? `— ${campaignName}` : ""}
+        </h3>
+        {campaignStats ? (
+          <p style={{ margin: 0 }}>
+            Got the email: <strong>{campaignStats.sent}</strong> | Remaining:{" "}
+            <strong>{campaignStats.remaining}</strong> | Permanently failed:{" "}
+            <strong>{campaignStats.failed}</strong> | Total recipients:{" "}
+            <strong>{campaignStats.total}</strong>
+          </p>
+        ) : (
+          <p style={{ margin: 0 }}>Save or load a campaign to see progress.</p>
+        )}
+      </section>
+
+      <section className="card">
         <p>
-          Status: <strong>{status}</strong> | Sent: <strong>{sent}</strong> |
-          Failed: <strong>{failed}</strong>
+          This job — Status: <strong>{status}</strong> | Sent:{" "}
+          <strong>{sent}</strong> | Failed: <strong>{failed}</strong>
         </p>
       </section>
 
