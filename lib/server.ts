@@ -12,8 +12,11 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
-
+export const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  global: {
+    fetch: (input, init) => fetch(input, { ...init, cache: "no-store" }),
+  },
+});
 type SmtpProfile = {
   host: string;
   port: number;
