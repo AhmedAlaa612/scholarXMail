@@ -68,9 +68,27 @@ const defaultTemplate = `<html>
 </html>`;
 
 const defaultSubject = "Next Scholar Summit 2026 - Reserve Your Free Spot";
+const LAST_CAMPAIGN_KEY = "scholarxmail:lastCampaignName";
+
+function readLastCampaignName(): string {
+  if (typeof window === "undefined") return "summit-2026";
+  try {
+    return window.localStorage.getItem(LAST_CAMPAIGN_KEY) || "summit-2026";
+  } catch {
+    return "summit-2026";
+  }
+}
+
+function rememberCampaignName(name: string) {
+  try {
+    window.localStorage.setItem(LAST_CAMPAIGN_KEY, name);
+  } catch {
+    // ignore (private browsing / storage blocked) - just won't persist across reloads
+  }
+}
 
 export default function Page() {
-  const [campaignName, setCampaignName] = useState("summit-2026");
+  const [campaignName, setCampaignName] = useState(readLastCampaignName);
   const [count, setCount] = useState(100);
   const [subject, setSubject] = useState(defaultSubject);
   const [htmlTemplate, setHtmlTemplate] = useState(defaultTemplate);
@@ -264,6 +282,7 @@ export default function Page() {
       setCampaignName(json.campaign.name);
       setSubject(json.campaign.subject || defaultSubject);
       setHtmlTemplate(json.campaign.html_template || defaultTemplate);
+      rememberCampaignName(json.campaign.name);
       pushLog(`Loaded campaign "${json.campaign.name}".`);
     } catch (err) {
       pushLog(
@@ -278,6 +297,7 @@ export default function Page() {
     setCampaignName("");
     setSubject(defaultSubject);
     setHtmlTemplate(defaultTemplate);
+    rememberCampaignName("");
     pushLog("Blank campaign ready — set a name, edit the template, then Save.");
   }
 
@@ -298,6 +318,7 @@ export default function Page() {
       if (!res.ok) throw new Error(json.error || "Failed to save campaign");
 
       pushLog(`Campaign "${json.campaign.name}" saved.`);
+      rememberCampaignName(json.campaign.name);
       await loadCampaigns();
     } catch (err) {
       pushLog(
@@ -312,6 +333,10 @@ export default function Page() {
     void loadProfiles();
     void loadDbProfiles();
     void loadCampaigns();
+    if (campaignName.trim()) {
+      void loadCampaignInto(campaignName);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function sendTestEmail() {
