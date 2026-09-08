@@ -6,6 +6,8 @@ import {
   supabase,
 } from "../../../lib/server";
 
+export const dynamic = "force-dynamic";
+
 function withFirstName(template: string, firstName: string) {
   return template.replaceAll("{{first_name}}", firstName || "there");
 }

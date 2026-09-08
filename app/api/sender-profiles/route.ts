@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { listSenderProfiles } from "../../../lib/server";
 
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   try {
     const profiles = await listSenderProfiles();
@@ -9,7 +11,7 @@ export async function GET() {
       return NextResponse.json(
         {
           error:
-            "No sender profiles configured. Add SMTP env vars or smtp-profiles.local.json.",
+            "No sender profiles configured. Add one in the Sender Profiles section of the app, or via SMTP env vars / smtp-profiles.local.json.",
         },
         { status: 500 },
       );

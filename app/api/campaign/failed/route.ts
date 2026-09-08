@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "../../../../lib/server";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(req: NextRequest) {
   const campaignName = req.nextUrl.searchParams.get("campaignName");
 

@@ -7,6 +7,8 @@ import {
   supabase,
 } from "../../../../lib/server";
 
+export const dynamic = "force-dynamic";
+
 type CampaignRow = {
   id: string;
   name: string;

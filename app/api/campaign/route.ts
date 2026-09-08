@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "../../../lib/server";
 
+export const dynamic = "force-dynamic";
+
 const DEFAULT_SUBJECT = "Next Scholar Summit 2026 - Reserve Your Free Spot";
 const DEFAULT_HTML = `<html>
   <body>
