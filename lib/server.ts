@@ -152,23 +152,70 @@ function loadProfilesFromEnv(): Record<string, SmtpProfile> {
   return result;
 }
 
-function getAllSmtpProfiles(): Record<string, SmtpProfile> {
-  // Precedence: legacy env < JSON env < local file.
+type SmtpProfileRow = {
+  key: string;
+  host: string;
+  port: number;
+  secure: boolean;
+  smtp_user: string;
+  smtp_pass: string;
+  from_address: string;
+};
+
+async function loadProfilesFromDb(): Promise<Record<string, SmtpProfile>> {
+  const { data, error } = await supabase
+    .from("smtp_profiles")
+    .select("key,host,port,secure,smtp_user,smtp_pass,from_address")
+    .returns<SmtpProfileRow[]>();
+
+  if (error) {
+    throw new Error(
+      `Failed to load SMTP profiles from database: ${error.message}`,
+    );
+  }
+
+  const result: Record<string, SmtpProfile> = {};
+
+  for (const row of data || []) {
+    const normalized = normalizeProfile(
+      {
+        host: row.host,
+        port: row.port,
+        user: row.smtp_user,
+        pass: row.smtp_pass,
+        from: row.from_address,
+        secure: row.secure,
+      },
+      row.key,
+    );
+    if (normalized) {
+      result[row.key] = normalized;
+    }
+  }
+
+  return result;
+}
+
+async function getAllSmtpProfiles(): Promise<Record<string, SmtpProfile>> {
+  // Precedence: legacy env < JSON env < local file < database (most dynamic wins).
+  const dbProfiles = await loadProfilesFromDb();
+
   return {
     ...loadProfilesFromEnv(),
     ...loadProfilesFromJsonEnv(),
     ...loadProfilesFromFile(),
+    ...dbProfiles,
   };
 }
 
-function toSenderProfile(value: unknown): SenderProfile {
+async function toSenderProfile(value: unknown): Promise<SenderProfile> {
   const requested = String(value || "").trim();
-  const available = getAllSmtpProfiles();
+  const available = await getAllSmtpProfiles();
   const keys = Object.keys(available);
 
   if (keys.length === 0) {
     throw new Error(
-      "No SMTP profiles configured. Add env SMTP vars or smtp-profiles.local.json.",
+      "No SMTP profiles configured. Add one in the app, or via env SMTP vars / smtp-profiles.local.json.",
     );
   }
 
@@ -183,8 +230,8 @@ function toSenderProfile(value: unknown): SenderProfile {
   return keys[0];
 }
 
-function getSmtpSettings(profile: SenderProfile) {
-  const profiles = getAllSmtpProfiles();
+async function getSmtpSettings(profile: SenderProfile) {
+  const profiles = await getAllSmtpProfiles();
   const selected = profiles[profile];
 
   if (!selected) {
@@ -197,9 +244,9 @@ function getSmtpSettings(profile: SenderProfile) {
   return selected;
 }
 
-export function getMailer(profileInput?: unknown) {
-  const profile = toSenderProfile(profileInput);
-  const smtp = getSmtpSettings(profile);
+export async function getMailer(profileInput?: unknown) {
+  const profile = await toSenderProfile(profileInput);
+  const smtp = await getSmtpSettings(profile);
 
   return nodemailer.createTransport({
     host: smtp.host,
@@ -209,13 +256,13 @@ export function getMailer(profileInput?: unknown) {
   });
 }
 
-export function getSender(profileInput?: unknown) {
-  const profile = toSenderProfile(profileInput);
-  return getSmtpSettings(profile).from;
+export async function getSender(profileInput?: unknown) {
+  const profile = await toSenderProfile(profileInput);
+  return (await getSmtpSettings(profile)).from;
 }
 
-export function listSenderProfiles() {
-  const profiles = getAllSmtpProfiles();
+export async function listSenderProfiles() {
+  const profiles = await getAllSmtpProfiles();
 
   return Object.entries(profiles).map(([key, value]) => ({
     key,

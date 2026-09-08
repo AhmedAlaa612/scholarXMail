@@ -42,14 +42,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: saveErr.message }, { status: 500 });
   }
 
-  const transporter = getMailer(senderProfile);
   const htmlBody = withFirstName(htmlTemplate, firstName);
   const textBody = `Hi ${firstName},\n\nPlease view this email in HTML format.`;
   const inlineImage = loadInlineSponsorsImage();
 
   try {
+    const transporter = await getMailer(senderProfile);
     await transporter.sendMail({
-      from: getSender(senderProfile),
+      from: await getSender(senderProfile),
       to: testEmail,
       subject,
       text: textBody,

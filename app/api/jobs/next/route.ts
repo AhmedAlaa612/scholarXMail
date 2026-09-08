@@ -108,10 +108,10 @@ export async function POST(req: NextRequest) {
   const textBody = `Hi ${firstName},\n\nPlease view this email in HTML format.`;
 
   try {
-    const transporter = getMailer(senderProfile);
+    const transporter = await getMailer(senderProfile);
     const inlineImage = loadInlineSponsorsImage();
     await transporter.sendMail({
-      from: getSender(senderProfile),
+      from: await getSender(senderProfile),
       to: email,
       subject,
       text: textBody,

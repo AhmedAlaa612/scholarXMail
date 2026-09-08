@@ -50,6 +50,19 @@ alter table campaign_jobs add column if not exists limit_profile text;
 create index if not exists idx_campaign_jobs_campaign on campaign_jobs(campaign_id);
 create index if not exists idx_campaign_jobs_status on campaign_jobs(status);
 
+-- SMTP sender profiles, manageable from the app UI (no env vars / redeploy needed)
+create table if not exists smtp_profiles (
+  id uuid primary key default gen_random_uuid(),
+  key text not null unique,
+  host text not null,
+  port integer not null default 587,
+  secure boolean not null default false,
+  smtp_user text not null,
+  smtp_pass text not null,
+  from_address text not null,
+  created_at timestamptz not null default now()
+);
+
 -- Helper: next unsent participant for a campaign (newest signups first)
 create or replace function get_next_unsent_participant(p_campaign_id uuid)
 returns table (id uuid, first_name text, email text)

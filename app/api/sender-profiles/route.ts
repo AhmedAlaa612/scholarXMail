@@ -3,7 +3,7 @@ import { listSenderProfiles } from "../../../lib/server";
 
 export async function GET() {
   try {
-    const profiles = listSenderProfiles();
+    const profiles = await listSenderProfiles();
 
     if (profiles.length === 0) {
       return NextResponse.json(

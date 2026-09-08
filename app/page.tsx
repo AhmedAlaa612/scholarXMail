@@ -13,6 +13,14 @@ type SenderProfileOption = {
   key: string;
   from: string;
 };
+type ManagedSmtpProfile = {
+  key: string;
+  host: string;
+  port: number;
+  secure: boolean;
+  user: string;
+  from: string;
+};
 
 const defaultTemplate = `<html>
   <body>
@@ -67,6 +75,15 @@ export default function Page() {
   );
   const [senderProfile, setSenderProfile] = useState<SenderProfile>("gmail");
 
+  const [dbProfiles, setDbProfiles] = useState<ManagedSmtpProfile[]>([]);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [newProfileKey, setNewProfileKey] = useState("");
+  const [newProfileHost, setNewProfileHost] = useState("smtp.gmail.com");
+  const [newProfilePort, setNewProfilePort] = useState(587);
+  const [newProfileUser, setNewProfileUser] = useState("");
+  const [newProfilePass, setNewProfilePass] = useState("");
+  const [newProfileFrom, setNewProfileFrom] = useState("");
+
   const [jobId, setJobId] = useState<string>("");
   const [status, setStatus] = useState<JobStatus>("idle");
   const [sent, setSent] = useState(0);
@@ -93,37 +110,125 @@ export default function Page() {
     setLog((prev) => [line, ...prev].slice(0, 120));
   }
 
-  useEffect(() => {
-    async function loadProfiles() {
-      try {
-        const res = await fetch("/api/sender-profiles", { method: "GET" });
-        const json = await res.json();
+  async function loadProfiles() {
+    try {
+      const res = await fetch("/api/sender-profiles", { method: "GET" });
+      const json = await res.json();
 
-        if (!res.ok) {
-          throw new Error(json.error || "Failed to load sender profiles");
-        }
-
-        const profiles = Array.isArray(json.profiles)
-          ? (json.profiles as SenderProfileOption[])
-          : [];
-
-        setProfileOptions(profiles);
-        if (profiles.length > 0) {
-          setSenderProfile((current) => {
-            if (profiles.some((profile) => profile.key === current)) {
-              return current;
-            }
-            return profiles[0].key;
-          });
-        }
-      } catch (err) {
-        pushLog(
-          `Could not load sender profiles: ${err instanceof Error ? err.message : "Unknown error"}`,
-        );
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to load sender profiles");
       }
+
+      const profiles = Array.isArray(json.profiles)
+        ? (json.profiles as SenderProfileOption[])
+        : [];
+
+      setProfileOptions(profiles);
+      if (profiles.length > 0) {
+        setSenderProfile((current) => {
+          if (profiles.some((profile) => profile.key === current)) {
+            return current;
+          }
+          return profiles[0].key;
+        });
+      }
+    } catch (err) {
+      pushLog(
+        `Could not load sender profiles: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  async function loadDbProfiles() {
+    try {
+      const res = await fetch("/api/smtp-profiles", { method: "GET" });
+      const json = await res.json();
+
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to load saved SMTP profiles");
+      }
+
+      setDbProfiles(
+        Array.isArray(json.profiles)
+          ? (json.profiles as ManagedSmtpProfile[])
+          : [],
+      );
+    } catch (err) {
+      pushLog(
+        `Could not load saved SMTP profiles: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    }
+  }
+
+  async function addProfile() {
+    const key = newProfileKey.trim();
+    const host = newProfileHost.trim();
+    const user = newProfileUser.trim();
+    const pass = newProfilePass.trim();
+
+    if (!key || !host || !user || !pass) {
+      pushLog("Profile key, host, user, and password are required.");
+      return;
     }
 
+    setProfileBusy(true);
+    try {
+      const res = await fetch("/api/smtp-profiles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          key,
+          host,
+          port: newProfilePort,
+          user,
+          pass,
+          from: newProfileFrom.trim(),
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to add profile");
+
+      pushLog(`Sender profile "${key}" saved.`);
+      setNewProfileKey("");
+      setNewProfileUser("");
+      setNewProfilePass("");
+      setNewProfileFrom("");
+
+      await Promise.all([loadDbProfiles(), loadProfiles()]);
+    } catch (err) {
+      pushLog(
+        `Add profile failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    } finally {
+      setProfileBusy(false);
+    }
+  }
+
+  async function removeProfile(key: string) {
+    setProfileBusy(true);
+    try {
+      const res = await fetch(
+        `/api/smtp-profiles?key=${encodeURIComponent(key)}`,
+        { method: "DELETE" },
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to remove profile");
+
+      pushLog(`Sender profile "${key}" removed.`);
+      await Promise.all([loadDbProfiles(), loadProfiles()]);
+    } catch (err) {
+      pushLog(
+        `Remove profile failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    } finally {
+      setProfileBusy(false);
+    }
+  }
+
+  useEffect(() => {
     void loadProfiles();
+    void loadDbProfiles();
   }, []);
 
   async function sendTestEmail() {
@@ -343,6 +448,101 @@ export default function Page() {
             value={count}
             onChange={(e) => setCount(Number(e.target.value || 0))}
           />
+        </div>
+      </section>
+
+      <section className="card">
+        <h3 style={{ marginTop: 0 }}>Sender Profiles (SMTP)</h3>
+        <p style={{ marginTop: 0 }}>
+          Add or remove SMTP accounts here — no code or redeploy needed. Each
+          one shows up in the &quot;Send From&quot; dropdown below.
+        </p>
+
+        {dbProfiles.length > 0 && (
+          <ul style={{ margin: "0 0 12px", paddingLeft: 18 }}>
+            {dbProfiles.map((profile) => (
+              <li
+                key={profile.key}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  marginBottom: 6,
+                }}
+              >
+                <span>
+                  <strong>{profile.key}</strong> — {profile.from} (
+                  {profile.host}:{profile.port})
+                </span>
+                <button
+                  className="stop"
+                  style={{ width: "auto", minWidth: 0, padding: "4px 10px" }}
+                  disabled={profileBusy}
+                  onClick={() => removeProfile(profile.key)}
+                >
+                  Remove
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <section className="grid">
+          <div>
+            <label>Profile Key</label>
+            <input
+              placeholder="e.g. marketing2"
+              value={newProfileKey}
+              onChange={(e) => setNewProfileKey(e.target.value)}
+            />
+          </div>
+          <div>
+            <label>SMTP Host</label>
+            <input
+              value={newProfileHost}
+              onChange={(e) => setNewProfileHost(e.target.value)}
+            />
+          </div>
+          <div>
+            <label>Port</label>
+            <input
+              type="number"
+              value={newProfilePort}
+              onChange={(e) =>
+                setNewProfilePort(Number(e.target.value || 587))
+              }
+            />
+          </div>
+          <div>
+            <label>SMTP Username</label>
+            <input
+              value={newProfileUser}
+              onChange={(e) => setNewProfileUser(e.target.value)}
+            />
+          </div>
+          <div>
+            <label>SMTP Password / App Password</label>
+            <input
+              type="password"
+              value={newProfilePass}
+              onChange={(e) => setNewProfilePass(e.target.value)}
+            />
+          </div>
+          <div>
+            <label>From (optional)</label>
+            <input
+              placeholder='ScholarX <you@example.com>'
+              value={newProfileFrom}
+              onChange={(e) => setNewProfileFrom(e.target.value)}
+            />
+          </div>
+        </section>
+
+        <div className="actions">
+          <button disabled={profileBusy} onClick={addProfile}>
+            Add Profile
+          </button>
         </div>
       </section>
 

@@ -21,12 +21,25 @@ This creates/updates:
 - `campaigns`
 - `campaign_participants` (now tracks `status` sent/failed + `error_message`)
 - `campaign_jobs` (now supports a `limit_reached` status + `limit_profile`)
+- `smtp_profiles` (sender accounts managed from the app UI, see below)
 - function `get_next_unsent_participant(uuid)` (now newest signups first)
 
 Re-run `supabase.sql` even on an existing database — it's written to be safe
 to re-apply (adds columns/constraints if missing).
 
-## 2) Environment Variables
+## 2) Sender Profiles (SMTP accounts)
+
+The primary way to manage sender accounts is now the **"Sender Profiles"**
+section in the app itself — add or remove as many as you want directly from
+the UI, no code changes or redeploys needed. They're stored in the
+`smtp_profiles` table (server-side only; passwords are never sent back to the
+browser after being saved).
+
+Env vars / a local JSON file are still supported as an optional fallback (for
+example to seed a default profile before the database has any rows) — see
+below. If a profile key exists in both, the database version wins.
+
+## 3) Environment Variables (optional fallback profiles)
 
 Copy `.env.example` to `.env.local` and fill values:
 
@@ -116,7 +129,7 @@ Example value for `SMTP_PROFILES_JSON`:
 }
 ```
 
-## 3) Run Locally
+## 4) Run Locally
 
 ```bash
 npm install
@@ -125,7 +138,7 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-## 4) Deploy to Vercel
+## 5) Deploy to Vercel
 
 1. Push this folder to GitHub.
 2. Import project in Vercel.
@@ -136,7 +149,10 @@ Open `http://localhost:3000`.
 
 - Template supports `{{first_name}}` placeholder.
 - Test send saves the current campaign template, then sends only to the email you enter.
-- Sender profile switch loads all configured profiles from env and/or `smtp-profiles.local.json`.
+- Sender profile dropdown loads profiles saved in the `smtp_profiles` table, merged with any
+  configured via env and/or `smtp-profiles.local.json`.
+- Add/remove sender profiles anytime from the "Sender Profiles" section in the app —
+  no code, env vars, or redeploy required.
 - Sending loop is controlled by the browser calling `/api/jobs/next` repeatedly. Keep the
   tab open while a job is running — closing it stops sending (nothing is lost; hit Resume
   and it continues from wherever it left off).
