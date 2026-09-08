@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const { data, error } = await supabase
     .from("campaign_jobs")
     .select(
-      "id,campaign_id,requested_count,sent_count,failed_count,status,created_at",
+      "id,campaign_id,requested_count,sent_count,failed_count,status,limit_profile,created_at",
     )
     .eq("id", id)
     .single();

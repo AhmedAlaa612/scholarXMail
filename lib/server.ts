@@ -224,6 +224,37 @@ export function listSenderProfiles() {
   }));
 }
 
+const RATE_LIMIT_RESPONSE_CODES = [421, 450, 451, 452, 454];
+const RATE_LIMIT_TEXT_PATTERNS = [
+  "rate limit",
+  "rate-limited",
+  "too many",
+  "quota",
+  "daily user sending limit",
+  "try again later",
+  "temporarily deferred",
+  "temporarily rate limited",
+  "5.4.5",
+  "4.7.0",
+];
+
+export function isRateLimitError(err: unknown): boolean {
+  const anyErr = err as
+    | { responseCode?: number; response?: string; message?: string }
+    | null
+    | undefined;
+
+  if (
+    anyErr?.responseCode &&
+    RATE_LIMIT_RESPONSE_CODES.includes(anyErr.responseCode)
+  ) {
+    return true;
+  }
+
+  const text = `${anyErr?.response || ""} ${anyErr?.message || ""}`.toLowerCase();
+  return RATE_LIMIT_TEXT_PATTERNS.some((pattern) => text.includes(pattern));
+}
+
 export function loadInlineSponsorsImage() {
   const candidates = [
     path.join(process.cwd(), "public", "sponsors.png"),

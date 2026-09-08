@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getMailer,
   getSender,
+  isRateLimitError,
   loadInlineSponsorsImage,
   supabase,
 } from "../../../../lib/server";
@@ -122,6 +123,8 @@ export async function POST(req: NextRequest) {
       {
         campaign_id: campaign.id,
         participant_id: nextRow.id,
+        status: "sent",
+        error_message: null,
       },
       { onConflict: "campaign_id,participant_id" },
     );
@@ -159,11 +162,32 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown send error";
 
-    // Mark as processed so it doesn't retry
+    if (isRateLimitError(err)) {
+      // Leave this recipient unsent so it's retried once another profile
+      // (or tomorrow's reset quota) is used. Halt the job instead of
+      // burning through the rest of the list with a blocked profile.
+      await supabase
+        .from("campaign_jobs")
+        .update({ status: "limit_reached", limit_profile: senderProfile })
+        .eq("id", job.id);
+
+      return NextResponse.json({
+        done: true,
+        status: "limit_reached",
+        limitProfile: senderProfile,
+        email,
+        error: message,
+      });
+    }
+
+    // Permanent failure (bad address, bounce, etc): record the reason and
+    // never retry this recipient again.
     await supabase.from("campaign_participants").upsert(
       {
         campaign_id: campaign.id,
         participant_id: nextRow.id,
+        status: "failed",
+        error_message: message,
       },
       { onConflict: "campaign_id,participant_id" },
     );

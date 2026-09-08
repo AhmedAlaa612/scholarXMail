@@ -19,9 +19,12 @@ Run SQL in Supabase SQL Editor:
 This creates/updates:
 
 - `campaigns`
-- `campaign_participants`
-- `campaign_jobs`
-- function `get_next_unsent_participant(uuid)`
+- `campaign_participants` (now tracks `status` sent/failed + `error_message`)
+- `campaign_jobs` (now supports a `limit_reached` status + `limit_profile`)
+- function `get_next_unsent_participant(uuid)` (now newest signups first)
+
+Re-run `supabase.sql` even on an existing database — it's written to be safe
+to re-apply (adds columns/constraints if missing).
 
 ## 2) Environment Variables
 
@@ -134,5 +137,17 @@ Open `http://localhost:3000`.
 - Template supports `{{first_name}}` placeholder.
 - Test send saves the current campaign template, then sends only to the email you enter.
 - Sender profile switch loads all configured profiles from env and/or `smtp-profiles.local.json`.
-- Sending loop is controlled by the browser calling `/api/jobs/next` repeatedly.
+- Sending loop is controlled by the browser calling `/api/jobs/next` repeatedly. Keep the
+  tab open while a job is running — closing it stops sending (nothing is lost; hit Resume
+  and it continues from wherever it left off).
+- Recipients are sent newest-signup-first.
 - Stop button updates job status to `stopped`; next iteration exits.
+- When a send fails with an SMTP rate-limit / quota-exceeded style error, the job
+  auto-stops with status `limit_reached` and records which profile hit it. The
+  recipient that failed is **not** marked as sent, so it's retried once you pick a
+  different profile (or the same one tomorrow, after its quota resets) and click
+  **Resume**.
+- Any other send failure (bad address, bounce, etc.) is recorded permanently as
+  `status = "failed"` with the SMTP error message on `campaign_participants`, so it's
+  never retried but stays available for review. Use **Load Failed List** in the app,
+  or query `campaign_participants` where `status = 'failed'` in Supabase directly.

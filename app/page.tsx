@@ -2,7 +2,12 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-type JobStatus = "idle" | "running" | "stopped" | "completed";
+type JobStatus =
+  | "idle"
+  | "running"
+  | "stopped"
+  | "completed"
+  | "limit_reached";
 type SenderProfile = string;
 type SenderProfileOption = {
   key: string;
@@ -68,9 +73,12 @@ export default function Page() {
   const [failed, setFailed] = useState(0);
   const [log, setLog] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
+  const [limitProfile, setLimitProfile] = useState<string>("");
   const stopRequestedRef = useRef(false);
 
   const isRunning = status === "running";
+  const canResume =
+    !!jobId && (status === "limit_reached" || status === "stopped");
 
   const canStart = useMemo(() => {
     return (
@@ -214,7 +222,15 @@ export default function Page() {
           const nextStatus = (json.status || "completed") as JobStatus;
           setStatus(nextStatus);
           stopRequestedRef.current = true;
-          pushLog(`Job ended: ${nextStatus}`);
+
+          if (nextStatus === "limit_reached") {
+            setLimitProfile(json.limitProfile || senderProfile);
+            pushLog(
+              `Profile "${json.limitProfile || senderProfile}" hit its send limit. Pick another profile and click Resume.`,
+            );
+          } else {
+            pushLog(`Job ended: ${nextStatus}`);
+          }
           break;
         }
 
@@ -228,6 +244,61 @@ export default function Page() {
         );
         break;
       }
+    }
+  }
+
+  async function resumeSending() {
+    if (!jobId) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/jobs/resume", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jobId }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to resume job");
+
+      stopRequestedRef.current = false;
+      setLimitProfile("");
+      setStatus("running");
+      pushLog(`Resumed with profile "${senderProfile}".`);
+
+      void runLoop(jobId);
+    } catch (err) {
+      pushLog(
+        `Resume failed: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadFailed() {
+    setBusy(true);
+    try {
+      const res = await fetch(
+        `/api/campaign/failed?campaignName=${encodeURIComponent(campaignName)}`,
+      );
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load failures");
+
+      const failed = Array.isArray(json.failed) ? json.failed : [];
+      if (failed.length === 0) {
+        pushLog("No permanently failed recipients recorded.");
+      } else {
+        pushLog(`-- ${failed.length} permanently failed recipient(s) --`);
+        for (const item of failed) {
+          pushLog(`Failed: ${item.email || item.participantId} - ${item.error}`);
+        }
+      }
+    } catch (err) {
+      pushLog(
+        `Load failed list error: ${err instanceof Error ? err.message : "Unknown error"}`,
+      );
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -326,8 +397,24 @@ export default function Page() {
           >
             Stop
           </button>
+          <button disabled={busy || !canResume} onClick={resumeSending}>
+            Resume
+          </button>
+          <button disabled={busy} onClick={loadFailed}>
+            Load Failed List
+          </button>
         </div>
       </section>
+
+      {status === "limit_reached" && (
+        <section className="card" style={{ borderColor: "var(--danger)" }}>
+          <p style={{ margin: 0 }}>
+            Profile <strong>{limitProfile || senderProfile}</strong> hit its
+            send limit. Pick a different profile above, then click{" "}
+            <strong>Resume</strong> to keep going.
+          </p>
+        </section>
+      )}
 
       <section className="card">
         <p>
